@@ -14,12 +14,11 @@
 
 auto hash = XXH32_avalanche<key_type>;
 
-class BatchProdCons
+struct BatchProdCons
 {
     uint32_t num_batches;
     uint32_t size_of_query;
     uint32_t size_of_buffer;
-
 
     key_type *query_host;
     key_type *query_device;
@@ -27,11 +26,18 @@ class BatchProdCons
     val_type *result_device;
     val_type *result_host;
 
-public:
-
-    void allocate_query(key_type* key, size_t loc)
+    void* allocate_data(key_type *data, size_t loc, bool query)
     {
-        cudaMemcpy(this->query_device + loc * this->size_of_query, key, this->size_of_query, cudaMemcpyHostToDevice);
+        if (query)
+        {
+            cudaMemcpy(this->query_device + loc * this->size_of_query, data, this->size_of_query, cudaMemcpyHostToDevice);
+            return this->query_device + loc * this->size_of_query;
+        }
+        else
+        {
+            cudaMemcpy(this->result_device + loc * this->size_of_query, data, this->size_of_query, cudaMemcpyHostToDevice);
+            return this->result_device + loc * this->size_of_query;
+        }
     }
 
     BatchProdCons(uint32_t num_batches = 5)
@@ -64,15 +70,12 @@ public:
     }
 };
 
-
-class LLlayer
+struct LLlayer
 {
     uint32_t size;
     key_type *table_key_device;
     val_type *table_value_device;
 
-public:
-    
     DEVICEQUALIFIER INLINEQUALIFIER void batch_insert(key_type *data, val_type *result)
     {
         size_t n = threadIdx.x;
@@ -82,22 +85,20 @@ public:
         int warp_index = threadIdx.x % warpSize;
         size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
 
-        if (leader == (warp_index - 1) && Empty == atomicCAS(table_key_device[loc], Empty, datum))
+        if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
         {
             data[n / warpSize] = Empty;
             table_value_device[loc] = result[n / warpSize];
         }
     }
 
-    
-
-    DEVICEQUALIFIER INLINEQUALIFIER void batch_find(const key_type *data, size_t n, val_type *result)
+    DEVICEQUALIFIER INLINEQUALIFIER void batch_find(key_type *data, size_t n, val_type *result)
     {
         key_type datum = data[n / warpSize];
         size_t key = hash(datum);
         size_t loc = threadIdx.x + key;
 
-        if (table_key_device[key] == datum && Reserved == atomicCAS(table_key_device[loc], datum, Reserved))
+        if (table_key_device[key] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
         {
             result[n / warpSize] = table_value_device[loc];
             data[n / warpSize] = Empty;
@@ -118,6 +119,11 @@ public:
         checkCuda(cudaFree(this->table_value_device));
     }
 };
+
+GLOBALQUALIFIER void ll_batch_insert()
+{
+    
+}
 
 // class HTLayer
 // {
