@@ -77,7 +77,7 @@ $(MAIN): $(OBJECTS)
 # it uses automatic variables $<: the name of the prerequisite of
 # the rule(a .c file) and $@: the name of the target of the rule (a .o file) 
 # (see the gnu make manual section about automatic variables)
-.cu.o:
+main.o: main.c
 	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $<  -o $@
 
 .PHONY: clean

@@ -12,7 +12,7 @@
 
 #define warpSize 32
 
-auto hash = XXH32_avalanche<key_type>;
+__device__ auto hash = XXH32_avalanche<key_type>;
 
 struct BatchProdCons
 {
@@ -26,17 +26,27 @@ struct BatchProdCons
     val_type *result_device;
     val_type *result_host;
 
-    void* allocate_data(key_type *data, size_t loc, bool query)
+    void h2d(size_t loc, bool query)
     {
         if (query)
         {
-            cudaMemcpy(this->query_device + loc * this->size_of_query, data, this->size_of_query, cudaMemcpyHostToDevice);
-            return this->query_device + loc * this->size_of_query;
+            cudaMemcpy(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice);
         }
         else
         {
-            cudaMemcpy(this->result_device + loc * this->size_of_query, data, this->size_of_query, cudaMemcpyHostToDevice);
-            return this->result_device + loc * this->size_of_query;
+            cudaMemcpy(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice);
+        }
+    }
+
+    void d2h(size_t loc, bool query)
+    {
+        if (query)
+        {
+            cudaMemcpy(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost);
+        }
+        else
+        {
+            cudaMemcpy(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost);
         }
     }
 
@@ -76,36 +86,6 @@ struct LLlayer
     key_type *table_key_device;
     val_type *table_value_device;
 
-    DEVICEQUALIFIER INLINEQUALIFIER void batch_insert(key_type *data, val_type *result)
-    {
-        size_t n = threadIdx.x;
-        key_type datum = data[n / warpSize];
-        size_t key = hash(datum);
-        size_t loc = threadIdx.x + key;
-        int warp_index = threadIdx.x % warpSize;
-        size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
-
-        if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
-        {
-            data[n / warpSize] = Empty;
-            table_value_device[loc] = result[n / warpSize];
-        }
-    }
-
-    DEVICEQUALIFIER INLINEQUALIFIER void batch_find(key_type *data, size_t n, val_type *result)
-    {
-        key_type datum = data[n / warpSize];
-        size_t key = hash(datum);
-        size_t loc = threadIdx.x + key;
-
-        if (table_key_device[key] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
-        {
-            result[n / warpSize] = table_value_device[loc];
-            data[n / warpSize] = Empty;
-            table_key_device[loc] = datum;
-        }
-    }
-
     HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 100, cudaDeviceProp *prop = nullptr)
     {
         this->size = size;
@@ -120,8 +100,36 @@ struct LLlayer
     }
 };
 
-GLOBALQUALIFIER void ll_batch_insert()
+GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
 {
+    size_t n = threadIdx.x;
+    key_type datum = data[n / warpSize];
+    size_t key = hash(datum);
+    size_t loc = (threadIdx.x + key)%size;
+    int warp_index = threadIdx.x % warpSize;
+    size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
+
+    if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
+    {
+        data[n / warpSize] = Empty;
+        table_value_device[loc] = result[n / warpSize];
+    }
+    
+}
+
+GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
+{
+    size_t n = threadIdx.x;
+    key_type datum = data[n / warpSize];
+    size_t key = hash(datum);
+    size_t loc = (threadIdx.x + key)%size;
+
+    if (table_key_device[key] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
+    {
+        result[n / warpSize] = table_value_device[loc];
+        data[n / warpSize] = Empty;
+        table_key_device[loc] = datum;
+    }
     
 }
 
