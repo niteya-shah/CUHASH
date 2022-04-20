@@ -33,22 +33,25 @@ public:
             this->batch->query_host[i] = key[i];
             this->batch->result_host[i] = val[i];
         }
-        for(int i = 0;i < n;i++)
-        {
-            this->batch->result_host[i] = 0;
-        }
+
 
         int loc = 0;
         this->batch->h2d(loc, true);
         this->batch->h2d(loc, false);
 
+        for(int i = 0;i < n;i++)
+        {
+            this->batch->result_host[i] = 0;
+        }
+
         ll_batch_insert<<<1, 512>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
         ll_batch_find<<<1, 512>>>(this->batch->query_device, this->batch->result_device, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        this->batch->d2h(loc, true);
         this->batch->d2h(loc, false);
 
         for(int i = 0;i < n;i++)
         {
-            printf("%i", this->batch->result_host[i]);
+            printf("%i : %i\n", this->batch->query_host[i], this->batch->result_host[i]);
         }
     }
 
