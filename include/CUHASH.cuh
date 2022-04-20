@@ -21,42 +21,37 @@ public:
         this->batch = new BatchProdCons();
     }
 
-    void batch_insert()
+    val_type* batch_find(key_type *key, int n)
     {
-        // Occupancy for cuda https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
-        key_type key[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
-        val_type val[16] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+        int loc = this->batch->get_loc();
 
-        int n = 16;
-        for(int i = 0;i<n;i++)
-        {
-            this->batch->query_host[i] = key[i];
-            this->batch->result_host[i] = val[i];
-        }
-
-
-        int loc = 0;
-        this->batch->h2d(loc, true);
-        this->batch->h2d(loc, false);
-
-
-
-        ll_batch_insert<<<1, 512>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
         for(int i = 0;i < n;i++)
         {
-            this->batch->query_host[i] = key[i];
-            this->batch->result_host[i] = 0;
+            this->batch->query_host[i + loc * this->batch->size_of_query] = key[i];
         }
+
         this->batch->h2d(loc, true);
-        this->batch->h2d(loc, false);
-        ll_batch_find<<<1, 512>>>(this->batch->query_device, this->batch->result_device, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ll_batch_find<<<1, n * warpSize>>>(this->batch->query_device, this->batch->result_device, llayer->table_key_device, llayer->table_value_device, llayer->size);
         this->batch->d2h(loc, true);
         this->batch->d2h(loc, false);
 
-        for(int i = 0;i < n;i++)
+        return this->batch->result_host + loc * this->batch->size_of_query;
+    }
+
+    void batch_insert(key_type* key, val_type* value, int n)
+    {
+        // Occupancy for cuda https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
+
+        int loc = this->batch->get_loc();        
+        for(int i = 0;i<n;i++)
         {
-            printf("%i : %i\n", this->batch->query_host[i], this->batch->result_host[i]);
+            this->batch->query_host[i + loc * this->batch->size_of_query] = key[i];
+            this->batch->result_host[i + loc * this->batch->size_of_query] = value[i];
         }
+
+        this->batch->h2d(loc, true);
+        this->batch->h2d(loc, false);
+        ll_batch_insert<<<1, n * warpSize>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
     }
 
     ~CUHASH()

@@ -20,11 +20,18 @@ struct BatchProdCons
     uint32_t size_of_query;
     uint32_t size_of_buffer;
 
+    int loc;
+
     key_type *query_host;
     key_type *query_device;
 
     val_type *result_device;
     val_type *result_host;
+
+    int get_loc()
+    {
+        return loc;
+    }
 
     void h2d(size_t loc, bool query)
     {
@@ -63,6 +70,7 @@ struct BatchProdCons
         }
         this->size_of_query = warpSize * sizeof(key_type);
         this->size_of_buffer = this->size_of_query * num_batches;
+        this->loc = num_batches;
 
         checkCuda(cudaMallocHost((void **)&query_host, size_of_buffer));
         checkCuda(cudaMallocHost((void **)&result_host, size_of_buffer));
@@ -124,7 +132,7 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* t
     size_t key = hash(datum);
     size_t loc = (threadIdx.x + key)%size;
 
-    if (table_key_device[loc] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
+    if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
     {
         result[n / warpSize] = table_value_device[loc];
         data[n / warpSize] = Empty;
