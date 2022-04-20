@@ -86,7 +86,7 @@ struct LLlayer
     key_type *table_key_device;
     val_type *table_value_device;
 
-    HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 100, cudaDeviceProp *prop = nullptr)
+    HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 1000, cudaDeviceProp *prop = nullptr)
     {
         this->size = size;
         checkCuda(cudaMalloc((void **)&table_key_device, size * sizeof(key_type)));
