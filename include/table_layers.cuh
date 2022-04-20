@@ -30,11 +30,11 @@ struct BatchProdCons
     {
         if (query)
         {
-            cudaMemcpy(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice);
+            checkCuda(cudaMemcpy(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice));
         }
         else
         {
-            cudaMemcpy(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice);
+            checkCuda(cudaMemcpy(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice));
         }
     }
 
@@ -42,11 +42,11 @@ struct BatchProdCons
     {
         if (query)
         {
-            cudaMemcpy(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost);
+            checkCuda(cudaMemcpy(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost));
         }
         else
         {
-            cudaMemcpy(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost);
+            checkCuda(cudaMemcpy(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost));
         }
     }
 
@@ -124,7 +124,7 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* t
     size_t key = hash(datum);
     size_t loc = (threadIdx.x + key)%size;
 
-    if (table_key_device[key] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
+    if (table_key_device[loc] == datum && Reserved == atomicCAS(&table_key_device[loc], datum, Reserved))
     {
         result[n / warpSize] = table_value_device[loc];
         data[n / warpSize] = Empty;
