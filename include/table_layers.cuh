@@ -14,11 +14,46 @@
 
 __device__ auto hash = XXH32_avalanche<key_type>;
 
+GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
+{
+    size_t n =  blockIdx.x * blockDim.x + threadIdx.x;
+    key_type datum = data[n / warpSize];
+    size_t key = hash(datum);
+    size_t loc = (threadIdx.x + key)%size;
+    int warp_index = threadIdx.x % warpSize;
+    size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
+
+    if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
+    {
+        data[n / warpSize] = Empty;
+        table_value_device[loc] = result[n / warpSize];
+    }
+}
+
+GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
+{
+    size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+    key_type datum = data[n / warpSize];
+    size_t key = hash(datum);
+    size_t loc = (threadIdx.x + key)%size;
+
+    if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
+    {
+        result[n / warpSize] = table_value_device[loc];
+        data[n / warpSize] = Empty;
+        table_key_device[loc] = datum;
+    }
+    
+}
+
 struct BatchProdCons
 {
     uint32_t num_batches;
     uint32_t size_of_query;
     uint32_t size_of_buffer;
+
+    int blockSize;   
+    int minGridSize;
 
     int loc;
 
@@ -62,21 +97,16 @@ struct BatchProdCons
         cudaDeviceProp prop;
         checkCuda(cudaGetDeviceProperties(&prop, 0));
 
-        uint32_t max_queries = prop.maxThreadsPerMultiProcessor * prop.multiProcessorCount;
-        if (num_batches * warpSize > max_queries)
-        {
-            std::cerr << "Incorrect size";
-            exit(1);
-        }
-        this->size_of_query = warpSize * sizeof(key_type);
+        checkCuda(cudaOccupancyMaxPotentialBlockSize(&this->minGridSize, &this->blockSize, ll_batch_find, 0, 0));
+        this->size_of_query = this->minGridSize * this->blockSize * sizeof(key_type);
         this->size_of_buffer = this->size_of_query * num_batches;
         this->loc = num_batches;
 
-        checkCuda(cudaMallocHost((void **)&query_host, size_of_buffer));
-        checkCuda(cudaMallocHost((void **)&result_host, size_of_buffer));
+        checkCuda(cudaMallocHost((void **)&query_host, this->size_of_buffer));
+        checkCuda(cudaMallocHost((void **)&result_host, this->size_of_buffer));
 
-        checkCuda(cudaMalloc((void **)&query_device, size_of_buffer));
-        checkCuda(cudaMalloc((void **)&result_device, size_of_buffer));
+        checkCuda(cudaMalloc((void **)&query_device, this->size_of_buffer));
+        checkCuda(cudaMalloc((void **)&result_device, this->size_of_buffer));
     }
     ~BatchProdCons()
     {
@@ -108,38 +138,7 @@ struct LLlayer
     }
 };
 
-GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
-{
-    size_t n = threadIdx.x;
-    key_type datum = data[n / warpSize];
-    size_t key = hash(datum);
-    size_t loc = (threadIdx.x + key)%size;
-    int warp_index = threadIdx.x % warpSize;
-    size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
 
-    if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
-    {
-        data[n / warpSize] = Empty;
-        table_value_device[loc] = result[n / warpSize];
-    }
-    
-}
-
-GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
-{
-    size_t n = threadIdx.x;
-    key_type datum = data[n / warpSize];
-    size_t key = hash(datum);
-    size_t loc = (threadIdx.x + key)%size;
-
-    if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
-    {
-        result[n / warpSize] = table_value_device[loc];
-        data[n / warpSize] = Empty;
-        table_key_device[loc] = datum;
-    }
-    
-}
 
 // class HTLayer
 // {
