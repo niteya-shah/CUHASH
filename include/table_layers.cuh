@@ -65,7 +65,7 @@ struct BatchProdCons
 
     int get_loc()
     {
-        return loc;
+        return 0;
     }
 
     void h2d(size_t loc, bool query)

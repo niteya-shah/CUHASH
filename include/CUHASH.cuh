@@ -44,14 +44,13 @@ struct CUHASH
         int loc = this->batch->get_loc();        
         for(int i = 0;i<n;i++)
         {
-            std::cout<<i<<std::endl;
             this->batch->query_host[i + loc * this->batch->size_of_query] = key[i];
-            // this->batch->result_host[i + loc * this->batch->size_of_query] = value[i];
+            this->batch->result_host[i + loc * this->batch->size_of_query] = value[i];
         }
 
-        // this->batch->h2d(loc, true);
-        // this->batch->h2d(loc, false);
-        // ll_batch_insert<<<1, n * warpSize>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
+        this->batch->h2d(loc, true);
+        this->batch->h2d(loc, false);
+        ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
     }
 
     ~CUHASH()
