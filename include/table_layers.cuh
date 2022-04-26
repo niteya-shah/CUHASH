@@ -19,8 +19,9 @@ GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result, key_type*
     size_t n =  blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
     size_t key = hash(datum);
-    size_t loc = (threadIdx.x + key)%size;
     int warp_index = threadIdx.x % warpSize;
+    size_t loc = (warp_index + key)%size;
+
     size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
 
     if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
@@ -35,7 +36,8 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* t
     size_t n = blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
     size_t key = hash(datum);
-    size_t loc = (threadIdx.x + key)%size;
+    int warp_index = threadIdx.x % warpSize;
+    size_t loc = (warp_index + key)%size;
 
     if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
     {
@@ -43,7 +45,6 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* t
         data[n / warpSize] = Empty;
         table_key_device[loc] = datum;
     }
-    
 }
 
 struct BatchProdCons
@@ -65,7 +66,7 @@ struct BatchProdCons
 
     int get_loc()
     {
-        return 0;
+        return this->loc++%this->num_batches;
     }
 
     void h2d(size_t loc, bool query)
@@ -98,9 +99,10 @@ struct BatchProdCons
         checkCuda(cudaGetDeviceProperties(&prop, 0));
 
         checkCuda(cudaOccupancyMaxPotentialBlockSize(&this->minGridSize, &this->blockSize, ll_batch_find, 0, 0));
-        this->size_of_query = this->minGridSize * this->blockSize * sizeof(key_type);
+        this->size_of_query = this->minGridSize * this->blockSize * sizeof(key_type) / warpSize;
         this->size_of_buffer = this->size_of_query * num_batches;
-        this->loc = num_batches;
+        this->num_batches = num_batches;
+        this->loc = 0;
 
         checkCuda(cudaMallocHost((void **)&query_host, this->size_of_buffer));
         checkCuda(cudaMallocHost((void **)&result_host, this->size_of_buffer));
@@ -124,7 +126,7 @@ struct LLlayer
     key_type *table_key_device;
     val_type *table_value_device;
 
-    HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 1000, cudaDeviceProp *prop = nullptr)
+    HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 100000, cudaDeviceProp *prop = nullptr)
     {
         this->size = size;
         checkCuda(cudaMalloc((void **)&table_key_device, size * sizeof(key_type)));
