@@ -29,7 +29,7 @@ struct CUHASH
             this->batch->query_host[i + loc * this->batch->size_of_query] = key[i];
         }
         this->batch->h2d(loc, true);
-        ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device, this->batch->result_device, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
         this->batch->d2h(loc, true);
         this->batch->d2h(loc, false);
 
@@ -49,7 +49,7 @@ struct CUHASH
 
         this->batch->h2d(loc, true);
         this->batch->h2d(loc, false);
-        ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device,this->batch->result_device , llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
         this->batch->d2h(loc, true);
     }
 

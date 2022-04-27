@@ -24,7 +24,7 @@ GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result, key_type*
 
     size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
 
-    if (leader == (warp_index - 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
+    if (leader == (warp_index + 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
     {
         data[n / warpSize] = Empty;
         table_value_device[loc] = result[n / warpSize];
