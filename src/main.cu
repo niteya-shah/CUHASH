@@ -9,7 +9,7 @@ int main(int argc, char *argv[])
 	int n = x->batch->blockSize * x->batch->minGridSize/warpSize;
 	key_type *key = new key_type[n];
 	val_type *val = new val_type[n];
-	int misses = 0;
+
 	for(int k= 0;k < 1;k++)
 	{
 
@@ -17,22 +17,23 @@ int main(int argc, char *argv[])
 		{
 			// key[i] = std::experimental::randint(0, INT_MAX);
 			// val[i] = std::experimental::randint(0, INT_MAX);
-			key[i] = i;
-			val[i] = i;
+			key[i] = i + 1;
+			val[i] = i + 1;
 		}
 		
 		x->batch_insert(key, val, n);
 
 		for(int i = 0;i < n;i++)
 		{
-			key[i] = i + n;
+			key[i] = i + 1;
 		}
 
 		int *result = x->batch_find(key, n);
 
 		for(int i = 0;i < n;i++)
 		{
-			printf("%i : %i\n", key[i], result[i]);
+			if(val[i] != result[i])
+				printf("%i : %i\n", key[i], result[i]);
 		}
 	}
 
