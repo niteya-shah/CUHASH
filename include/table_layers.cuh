@@ -47,36 +47,59 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result, key_type* t
     }
 }
 
-GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
+GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size, size_t num_searches = 5)
 {
     size_t n =  blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
     size_t key = hash(datum);
     int warp_index = threadIdx.x % warpSize;
-    size_t loc = (warp_index + key)%size;
-
-    size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
-
-    if (leader == (warp_index + 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
+    int flag = 0;
+    for(int i = 0;i < num_searches;i++)
     {
-        data[n / warpSize] = Empty;
-        table_value_device[loc] = result[n / warpSize];
+        size_t loc = (warp_index + key + i * warpSize)%size;
+
+        size_t leader = __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
+        if(leader != 0)
+        {
+            if (leader == (warp_index + 1) && Empty == atomicCAS(&table_key_device[loc], Empty, datum))
+            {
+                data[n / warpSize] = Empty;
+                table_value_device[loc] = result[n / warpSize];
+                flag = 1;
+            }
+            __syncwarp();
+            flag = __shfl_sync(FULL_MASK, flag, leader - 1);
+            if(flag)
+                return;
+        }
     }
 }
 
-GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size)
+GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result, key_type* table_key_device, val_type* table_value_device, size_t size, size_t num_searches = 5)
 {
+    __shared__ int shmem[32];
     size_t n = blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
     size_t key = hash(datum);
     int warp_index = threadIdx.x % warpSize;
-    size_t loc = (warp_index + key)%size;
 
-    if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
+    if (!warp_index)
+        shmem[threadIdx.x/warpSize] = 0;
+
+    for(int i = 0;i < num_searches;i++)
     {
-        result[n / warpSize] = table_value_device[loc];
-        data[n / warpSize] = Empty;
-        table_key_device[loc] = datum;
+        size_t loc = (warp_index + key + i * warpSize)%size;
+
+        if (table_key_device[loc] == datum && datum == atomicCAS(&table_key_device[loc], datum, Reserved))
+        {
+            result[n / warpSize] = table_value_device[loc];
+            data[n / warpSize] = Empty;
+            table_key_device[loc] = datum;
+            shmem[threadIdx.x/warpSize] = 1;
+        }
+        __syncwarp();
+        if(shmem[threadIdx.x/warpSize])
+            return;
     }
 }
 
@@ -90,6 +113,8 @@ struct BatchProdCons
     int minGridSize;
 
     int loc;
+    cudaStream_t *stream;
+
 
     key_type *query_host;
     key_type *query_device;
@@ -106,11 +131,11 @@ struct BatchProdCons
     {
         if (query)
         {
-            checkCuda(cudaMemcpy(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice));
+            checkCuda(cudaMemcpyAsync(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice, stream[loc]));
         }
         else
         {
-            checkCuda(cudaMemcpy(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice));
+            checkCuda(cudaMemcpyAsync(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice, stream[loc]));
         }
     }
 
@@ -118,11 +143,11 @@ struct BatchProdCons
     {
         if (query)
         {
-            checkCuda(cudaMemcpy(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost));
+            checkCuda(cudaMemcpyAsync(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost, stream[loc]));
         }
         else
         {
-            checkCuda(cudaMemcpy(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost));
+            checkCuda(cudaMemcpyAsync(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost, stream[loc]));
         }
     }
 
@@ -135,7 +160,13 @@ struct BatchProdCons
         this->size_of_query = this->minGridSize * this->blockSize * sizeof(key_type) / warpSize;
         this->size_of_buffer = this->size_of_query * num_batches;
         this->num_batches = num_batches;
+
         this->loc = 0;
+        this->stream = new cudaStream_t[num_batches];
+        for(uint32_t i = 0;i < num_batches;i++)
+        {
+            cudaStreamCreate(&stream[i]);
+        }
 
         checkCuda(cudaMallocHost((void **)&query_host, this->size_of_buffer));
         checkCuda(cudaMallocHost((void **)&result_host, this->size_of_buffer));
@@ -145,6 +176,12 @@ struct BatchProdCons
     }
     ~BatchProdCons()
     {
+        for(uint32_t i = 0;i < num_batches;i++)
+        {
+            cudaStreamDestroy(stream[i]);
+        }
+        delete[] stream;
+
         checkCuda(cudaFreeHost(this->query_host));
         checkCuda(cudaFreeHost(this->result_host));
 

@@ -1,6 +1,7 @@
 CXX = nvcc
 
-CXXFLAGS	:= -O3 -DNEDUBG
+CXXFLAGS	:= -DNEDUBG --compiler-options=-Wextra,-Wall,-O3,-Wno-unused-result,-Wno-unused-parameter
+
 
 LFLAGS = -lcuda -lcudart
 OUTPUT	:= output
