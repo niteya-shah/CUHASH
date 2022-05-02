@@ -8,7 +8,7 @@
 struct CUHASH
 {
     LLlayer *llayer;
-    // HTLayer *htlayer;
+    HTLayer *htlayer;
     // LargeLayer *large_layer;
     BatchProdCons *batch;
 
@@ -29,7 +29,8 @@ struct CUHASH
             this->batch->query_host[i + loc * this->batch->size_of_query] = key[i];
         }
         this->batch->h2d(loc, true);
-        ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
         this->batch->d2h(loc, true);
         this->batch->d2h(loc, false);
 
@@ -56,7 +57,7 @@ struct CUHASH
     ~CUHASH()
     {
         delete this->llayer;
-        // delete this->htlayer;
+        delete this->htlayer;
         // delete this->large_layer;
         delete this->batch;
     }

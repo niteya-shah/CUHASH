@@ -51,6 +51,12 @@ GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result, key_type*
 {
     size_t n =  blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
+    
+    if(datum == Empty)
+    {
+        return;
+    }
+    
     size_t key = hash(datum);
     int warp_index = threadIdx.x % warpSize;
     int flag = 0;
@@ -80,11 +86,19 @@ GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result, key_type* t
     __shared__ int shmem[32];
     size_t n = blockIdx.x * blockDim.x + threadIdx.x;
     key_type datum = data[n / warpSize];
+ 
+    if(datum == Empty)
+    {
+        return;
+    }
+ 
     size_t key = hash(datum);
     int warp_index = threadIdx.x % warpSize;
 
     if (!warp_index)
+    {
         shmem[threadIdx.x/warpSize] = 0;
+    }
 
     for(int i = 0;i < num_searches;i++)
     {
@@ -210,6 +224,27 @@ struct LLlayer
     }
 };
 
+struct HTLayer
+{
+
+    uint32_t size;
+    uint32_t num_searches;
+    key_type *table_key_device;
+    val_type *table_value_device;
+
+    HOSTQUALIFIER INLINEQUALIFIER explicit HTLayer(uint32_t size = 100000)
+    {
+        this->size = size;
+        checkCuda(cudaMalloc((void **)&table_key_device, size * sizeof(key_type)));
+        checkCuda(cudaMalloc((void **)&table_value_device, size * sizeof(val_type)));
+        checkCuda(cudaMemset(table_key_device, Empty, size * sizeof(key_type)));
+    }
+    HOSTQUALIFIER INLINEQUALIFIER ~HTLayer()
+    {
+        checkCuda(cudaFree(this->table_key_device));
+        checkCuda(cudaFree(this->table_value_device));
+    }
+};
 
 
 // class HTLayer
