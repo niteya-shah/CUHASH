@@ -1,6 +1,7 @@
 CXX = nvcc
 
-CXXFLAGS	:= -DNEDUBG --compiler-options=-Wextra,-Wall,-O3,-Wno-unused-result,-Wno-unused-parameter
+CXXFLAGS	:= --compiler-options=-Wextra,-Wall,-O3,-Wno-unused-result,-Wno-unused-parameter
+CXXFLAGS_DEBUG	:= -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter
 
 
 LFLAGS = -lcuda -lcudart
@@ -21,6 +22,9 @@ OUTPUTMAIN := $(OUTPUT)/run
 
 
 all: $(OUTPUT) $(MAIN)
+
+debug:
+	$(CXX) src/$(OBJECTS) $(CXXFLAGS_DEBUG) -I $(INCLUDEDIRS) -o $(OUTPUTMAIN)  $(LFLAGS) $(LIBS)
 
 
 $(OUTPUT):
