@@ -33,7 +33,7 @@ struct CUHASH
         ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
         this->batch->d2h(loc, true);
         this->batch->d2h(loc, false);
-
+        cudaStreamSynchronize(this->batch->stream[loc]);
         return this->batch->result_host + loc * this->batch->size_of_query;
     }
 
@@ -50,8 +50,10 @@ struct CUHASH
 
         this->batch->h2d(loc, true);
         this->batch->h2d(loc, false);
-        ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, llayer->table_key_device, llayer->table_value_device, llayer->size);
+        ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize>>>(this->batch->query_device + loc * this->batch->size_of_query, this->batch->result_device + loc * this->batch->size_of_query, htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
         this->batch->d2h(loc, true);
+        cudaStreamSynchronize(this->batch->stream[loc]);
     }
 
     ~CUHASH()
