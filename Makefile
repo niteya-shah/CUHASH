@@ -1,10 +1,10 @@
 CXX = nvcc
 
 CXXFLAGS	:= --compiler-options=-Wextra,-Wall,-O2,-Wno-unused-result,-Wno-unused-parameter
-CXXFLAGS_DEBUG	:= -DNDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter,-DNDEBUG
+CXXFLAGS_DEBUG	:= -lineinfo -g -G #--compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter 
 
 
-LFLAGS = -lcuda -lcudart
+LFLAGS = #-lcuda -lcudart
 OUTPUT	:= output
 
 SRC		:= src
