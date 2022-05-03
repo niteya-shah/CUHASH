@@ -1,7 +1,7 @@
 CXX = nvcc
 
-CXXFLAGS	:= --compiler-options=-Wextra,-Wall,-O3,-Wno-unused-result,-Wno-unused-parameter
-CXXFLAGS_DEBUG	:= -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter
+CXXFLAGS	:= --compiler-options=-Wextra,-Wall,-O2,-Wno-unused-result,-Wno-unused-parameter
+CXXFLAGS_DEBUG	:= -DNDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter,-DNDEBUG
 
 
 LFLAGS = -lcuda -lcudart

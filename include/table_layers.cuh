@@ -138,7 +138,8 @@ struct BatchProdCons
 
     int get_loc()
     {
-        return this->loc++%this->num_batches;
+        this->loc = (loc + 1)%this->num_batches;
+        return this->loc;
     }
 
     void h2d(size_t loc, bool query)
