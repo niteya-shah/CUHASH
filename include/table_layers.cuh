@@ -128,6 +128,8 @@ struct BatchProdCons
 
     int loc;
     cudaStream_t *stream;
+    cudaEvent_t *evt;
+
 
 
     key_type *query_host;
@@ -144,25 +146,28 @@ struct BatchProdCons
 
     void h2d(size_t loc, bool query)
     {
+        cudaStreamSynchronize(stream[loc]);
+        int offset = loc * this->size_of_query;
         if (query)
         {
-            checkCuda(cudaMemcpyAsync(this->query_device + loc * this->size_of_query, this->query_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice, stream[loc]));
+            checkCuda(cudaMemcpyAsync(&this->query_device[offset], &this->query_host[offset], this->size_of_query * sizeof(key_type), cudaMemcpyHostToDevice, stream[loc]));
         }
         else
         {
-            checkCuda(cudaMemcpyAsync(this->result_device + loc * this->size_of_query, this->result_host + loc * this->size_of_query, this->size_of_query, cudaMemcpyHostToDevice, stream[loc]));
+            checkCuda(cudaMemcpyAsync(&this->result_device[offset], &this->result_host[offset], this->size_of_query * sizeof(val_type), cudaMemcpyHostToDevice, stream[loc]));
         }
     }
 
     void d2h(size_t loc, bool query)
     {
+        int offset = loc * this->size_of_query;
         if (query)
         {
-            checkCuda(cudaMemcpyAsync(this->query_host + loc * this->size_of_query, this->query_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost, stream[loc]));
+            checkCuda(cudaMemcpyAsync(&this->query_host[offset], &this->query_device[offset], this->size_of_query * sizeof(key_type), cudaMemcpyDeviceToHost, stream[loc]));
         }
         else
         {
-            checkCuda(cudaMemcpyAsync(this->result_host + loc * this->size_of_query, this->result_device + loc * this->size_of_query, this->size_of_query, cudaMemcpyDeviceToHost, stream[loc]));
+            checkCuda(cudaMemcpyAsync(&this->result_host[offset], &this->result_device[offset], this->size_of_query * sizeof(val_type), cudaMemcpyDeviceToHost, stream[loc]));
         }
     }
 
@@ -172,28 +177,32 @@ struct BatchProdCons
         checkCuda(cudaGetDeviceProperties(&prop, 0));
 
         checkCuda(cudaOccupancyMaxPotentialBlockSize(&this->minGridSize, &this->blockSize, ll_batch_find, 0, 0));
-        this->size_of_query = this->minGridSize * this->blockSize * sizeof(key_type) / warpSize;
+        this->size_of_query = this->minGridSize * this->blockSize / warpSize;
         this->size_of_buffer = this->size_of_query * num_batches;
         this->num_batches = num_batches;
 
         this->loc = 0;
         this->stream = new cudaStream_t[num_batches];
+        this->evt = new cudaEvent_t[num_batches];
         for(uint32_t i = 0;i < num_batches;i++)
         {
             cudaStreamCreate(&stream[i]);
+            cudaEventCreate(&evt[i]);
         }
+        cudaEventRecord(evt[num_batches - 1], stream[num_batches - 1]);
 
-        checkCuda(cudaMallocHost((void **)&query_host, this->size_of_buffer));
-        checkCuda(cudaMallocHost((void **)&result_host, this->size_of_buffer));
+        checkCuda(cudaMallocHost((void **)&query_host, this->size_of_buffer * sizeof(key_type)));
+        checkCuda(cudaMallocHost((void **)&result_host, this->size_of_buffer * sizeof(val_type)));
 
-        checkCuda(cudaMalloc((void **)&query_device, this->size_of_buffer));
-        checkCuda(cudaMalloc((void **)&result_device, this->size_of_buffer));
+        checkCuda(cudaMalloc((void **)&query_device, this->size_of_buffer * sizeof(key_type)));
+        checkCuda(cudaMalloc((void **)&result_device, this->size_of_buffer * sizeof(val_type)));
     }
     ~BatchProdCons()
     {
         for(uint32_t i = 0;i < num_batches;i++)
         {
             cudaStreamDestroy(stream[i]);
+            cudaEventDestroy(evt[i]);
         }
         delete[] stream;
 
