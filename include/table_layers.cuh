@@ -188,18 +188,18 @@ struct BatchProdCons {
   }
 
   void h2d(size_t loc, bool query) {
-    cudaStreamSynchronize(stream[loc]);
+    // cudaStreamSynchronize(stream[loc]);
     int offset = loc * this->size_of_query;
     if (query) {
-      checkCuda(cudaMemcpyAsync(&this->query_device[offset],
+      checkCuda(cudaMemcpy(&this->query_device[offset],
                                 &this->query_host[offset],
                                 this->size_of_query * sizeof(key_type),
-                                cudaMemcpyHostToDevice, stream[loc]));
+                                cudaMemcpyHostToDevice));
     } else {
-      checkCuda(cudaMemcpyAsync(&this->result_device[offset],
+      checkCuda(cudaMemcpy(&this->result_device[offset],
                                 &this->result_host[offset],
                                 this->size_of_query * sizeof(val_type),
-                                cudaMemcpyHostToDevice, stream[loc]));
+                                cudaMemcpyHostToDevice));
     }
   }
 
@@ -209,11 +209,11 @@ struct BatchProdCons {
       checkCuda(cudaMemcpy(&this->query_host[offset],
                                 &this->query_device[offset],
                                 this->size_of_query * sizeof(key_type),
-                                cudaMemcpyDeviceToHost, stream[loc]));
+                                cudaMemcpyDeviceToHost));
     } else {
       checkCuda(cudaMemcpy(&this->result_host[offset], &this->result_device[offset],
                                 this->size_of_query * sizeof(val_type),
-                                cudaMemcpyDeviceToHost, stream[loc]));
+                                cudaMemcpyDeviceToHost));
     }
   }
 
@@ -264,7 +264,7 @@ struct BatchProdCons {
   void pop(bool query) {
 
     d2h(_back, query);
-    checkCuda(cudaStreamSynchronize(stream[_back]));
+    // checkCuda(cudaStreamSynchronize(stream[_back]));
     std::cout<<"Removing from "<<_back<<std::endl;
 
     _back++;

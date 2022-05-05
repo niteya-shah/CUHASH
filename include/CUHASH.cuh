@@ -46,14 +46,14 @@ struct CUHASH {
     int offset = loc * this->batch->size_of_query;
     int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
 
-    cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
+    // cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
 
     ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                      this->batch->stream[loc]>>>(
+                      0>>>(
         &this->batch->query_device[offset], &this->batch->result_device[offset],
         llayer->table_key_device, llayer->table_value_device, llayer->size);
     ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                      this->batch->stream[loc]>>>(
+                      0>>>(
         &this->batch->query_device[offset], &this->batch->result_device[offset],
         htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
     cudaEventRecord(this->batch->evt[loc]);
