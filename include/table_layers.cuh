@@ -119,7 +119,6 @@ GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
   }
 }
 
-template <typename key_type = int32_t, typename val_type = int32_t>
 struct BatchProdCons {
   uint32_t _back;
   uint32_t _front;
@@ -172,9 +171,6 @@ struct BatchProdCons {
 
   ~BatchProdCons() {
 
-    while (in_use != 0)
-      pop();
-
     for (uint32_t i = 0; i < capacity; i++) {
       cudaStreamDestroy(stream[i]);
       cudaEventDestroy(evt[i]);
@@ -225,7 +221,7 @@ struct BatchProdCons {
     }
 
     int offset = _front * size_of_query;
-    for (int i = 0; i < n; i++) {
+    for (size_t i = 0; i < n; i++) {
       query_host[i + offset] = keys[i];
     }
     h2d(_front, true);
@@ -243,9 +239,9 @@ struct BatchProdCons {
     }
 
     int offset = _front * size_of_query;
-    for (int i = 0; i < n; i++) {
-      query_host[i + _front * size_of_query] = keys[i];
-      result_host[i + _front * size_of_query] = values[i];
+    for (size_t i = 0; i < n; i++) {
+      query_host[i + offset] = keys[i];
+      result_host[i + offset] = values[i];
     }
 
     h2d(_front, true);
@@ -261,7 +257,7 @@ struct BatchProdCons {
 
   void pop(bool query) {
     d2h(_back, query);
-    checkCuda(cudaStreamSynchronize(this->batch->stream[loc]));
+    checkCuda(cudaStreamSynchronize(stream[_back]));
     
     _back++;
     _back %= capacity;
@@ -269,7 +265,7 @@ struct BatchProdCons {
   }
 
   friend std::ostream &operator<<(std::ostream &out,
-                                  const circular_buffer &cb) {
+                                  const BatchProdCons &cb) {
     for (unsigned i = cb._back, count = 0; count != cb.in_use;
          i = (i + 1) % cb.capacity, count++) {
       // out << cb.data[i] << " ";
