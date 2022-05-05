@@ -22,7 +22,8 @@ struct CUHASH {
     int loc = this->batch->push(key, n);
     int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
 
-    cudaEventSynchronize(this->batch->evt[previous]);
+    cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
+
     ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
         &this->batch->query_device[loc], &this->batch->result_device[loc],
@@ -34,7 +35,7 @@ struct CUHASH {
     cudaEventRecord(this->batch->evt[loc]);
     this->batch->pop(false);
 
-    return &this->batch->result_host[loc];
+    return &this->batch->query_host[loc];
   }
 
   key_type *batch_insert(key_type *key, val_type *value, int n) {
@@ -43,6 +44,9 @@ struct CUHASH {
 
     int loc = this->batch->push(key, value, n);
     int offset = loc * this->batch->size_of_query;
+    int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
+
+    cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
 
     ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
                       this->batch->stream[loc]>>>(
@@ -52,9 +56,10 @@ struct CUHASH {
                       this->batch->stream[loc]>>>(
         &this->batch->query_device[offset], &this->batch->result_device[offset],
         htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
+    cudaEventRecord(this->batch->evt[loc]);
 
     this->batch->pop(true);
-    checkCuda(cudaStreamSynchronize(this->batch->stream[loc]));
+
     return &this->batch->result_host[offset];
   }
 
