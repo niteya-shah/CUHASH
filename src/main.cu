@@ -2,8 +2,6 @@
 #include <experimental/random>
 #include <string>
 #include <CUHASH.cuh>
-#include <unistd.h>
-
 
 
 int main(int argc, char *argv[])
@@ -26,14 +24,21 @@ int main(int argc, char *argv[])
 			// val[i] = i + 1;
 		}
 		
-		int *keys = x->batch_insert(key, val, n);
+		x->batch_insert(key, val, n);
+
+		// for(int i = 0;i < n;i++)
+		// {
+		// 	printf("%i: %i\n", x->batch->query_host[i], val[i]);
+		// }
+
 		int *result = x->batch_find(key, n);
 
 		for(int i = 0;i < n;i++)
 		{
-			if(val[i] != result[i - 1])
+			// printf("%i: %i, %i\n", key[i], val[i], result[i]);
+			if(val[i] != result[i])
 			{
-				printf("%i: %i, %i\n", key[i], val[i], result[i - 1]);
+				printf("%i: %i, %i\n", key[i], val[i], result[i]);
 				misses++;
 			}
 
