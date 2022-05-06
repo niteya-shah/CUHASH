@@ -18,10 +18,10 @@ int main(int argc, char *argv[])
 		misses = 0;
 		for(int i = 0;i < n;i++)
 		{
-			key[i] = std::experimental::randint(1, INT_MAX - 1);
-			val[i] = std::experimental::randint(1, INT_MAX - 1);
-			// key[i] = i + 1;
-			// val[i] = i + 1;
+			// key[i] = std::experimental::randint(1, INT_MAX - 1);
+			// val[i] = std::experimental::randint(1, INT_MAX - 1);
+			key[i] = i + 1;
+			val[i] = i + 1;
 		}
 		
 		x->batch_insert(key, val, n);
@@ -38,7 +38,7 @@ int main(int argc, char *argv[])
 			// printf("%i: %i, %i\n", key[i], val[i], result[i]);
 			if(val[i] != result[i])
 			{
-				// printf("%i: %i, %i\n", key[i], val[i], result[i]);
+				printf("%i: %i, %i\n", key[i], val[i], result[i]);
 				misses++;
 			}
 
