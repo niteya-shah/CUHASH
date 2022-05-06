@@ -155,10 +155,8 @@ struct BatchProdCons {
     this->evt = new cudaEvent_t[capacity];
     for (uint32_t i = 0; i < capacity; i++) {
       cudaStreamCreate(&stream[i]);
-      cudaEventCreateWithFlags(&evt[i], cudaEventDisableTiming);
+      cudaEventCreate(&evt[i]);
     }
-
-    cudaEventRecord(evt[capacity - 1], stream[capacity - 1]);
 
     checkCuda(cudaMallocHost((void **)&query_host,
                              this->size_of_buffer * sizeof(key_type)));
@@ -206,12 +204,13 @@ struct BatchProdCons {
   void d2h(size_t loc, bool query) {
     int offset = loc * this->size_of_query;
     if (query) {
-      checkCuda(cudaMemcpy(&this->query_host[offset],
+      checkCuda(cudaMemcpyAsync(&this->query_host[offset],
                                 &this->query_device[offset],
                                 this->size_of_query * sizeof(key_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     } else {
-      checkCuda(cudaMemcpy(&this->result_host[offset], &this->result_device[offset],
+      checkCuda(cudaMemcpyAsync(&this->result_host[offset],
+                                &this->result_device[offset],
                                 this->size_of_query * sizeof(val_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     }
@@ -226,10 +225,8 @@ struct BatchProdCons {
       query_host[i + offset] = keys[i];
     }
     h2d(_front, true);
-    // checkCuda(cudaStreamSynchronize(stream[_front]));
 
     uint32_t temp = _front;
-    std::cout<<"Adding to front "<<_front<<std::endl;
     _front++;
     _front %= capacity;
     ++in_use;
@@ -249,9 +246,6 @@ struct BatchProdCons {
 
     h2d(_front, true);
     h2d(_front, false);
-    // checkCuda(cudaStreamSynchronize(stream[_front]));
-
-    std::cout<<"Adding to front "<<_front<<std::endl;
 
     ++in_use;
     uint32_t temp = _front;
@@ -262,11 +256,9 @@ struct BatchProdCons {
   }
 
   void pop(bool query) {
-
     d2h(_back, query);
     checkCuda(cudaStreamSynchronize(stream[_back]));
-    std::cout<<"Removing from "<<_back<<std::endl;
-
+    
     _back++;
     _back %= capacity;
     --in_use;
