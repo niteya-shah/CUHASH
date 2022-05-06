@@ -206,12 +206,12 @@ struct BatchProdCons {
   void d2h(size_t loc, bool query) {
     int offset = loc * this->size_of_query;
     if (query) {
-      checkCuda(cudaMemcpy(&this->query_host[offset],
+      checkCuda(cudaMemcpyAsync(&this->query_host[offset],
                                 &this->query_device[offset],
                                 this->size_of_query * sizeof(key_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     } else {
-      checkCuda(cudaMemcpy(&this->result_host[offset], &this->result_device[offset],
+      checkCuda(cudaMemcpyAsync(&this->result_host[offset], &this->result_device[offset],
                                 this->size_of_query * sizeof(val_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     }

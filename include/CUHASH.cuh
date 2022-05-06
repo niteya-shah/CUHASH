@@ -35,7 +35,7 @@ struct CUHASH {
     cudaEventRecord(this->batch->evt[loc]);
     this->batch->pop(false);
 
-    return &this->batch->query_host[loc];
+    return &this->batch->result_host[loc];
   }
 
   key_type *batch_insert(key_type *key, val_type *value, int n) {
@@ -60,7 +60,7 @@ struct CUHASH {
 
     this->batch->pop(true);
 
-    return &this->batch->result_host[offset];
+    return &this->batch->query_host[offset];
   }
 
   ~CUHASH() {
