@@ -16,108 +16,21 @@ __device__ auto hash = XXH32_avalanche<key_type>;
 GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
                                      val_type *table_value_device,
-                                     size_t size) {
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-  size_t loc = (warp_index + key) % size;
-
-  size_t leader =
-      __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
-
-  if (leader == (warp_index + 1) &&
-      Empty == atomicCAS(&table_key_device[loc], Empty, datum)) {
-    data[n / warpSize] = Empty;
-    table_value_device[loc] = result[n / warpSize];
-  }
-}
+                                     size_t size);
 
 GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
-                                   val_type *table_value_device, size_t size) {
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-  size_t loc = (warp_index + key) % size;
-
-  if (table_key_device[loc] == datum &&
-      datum == atomicCAS(&table_key_device[loc], datum, Reserved)) {
-    result[n / warpSize] = table_value_device[loc];
-    data[n / warpSize] = Empty;
-    table_key_device[loc] = datum;
-  }
-}
-
+                                   val_type *table_value_device, size_t size);
+                              
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
                                      val_type *table_value_device, size_t size,
-                                     size_t num_searches = 5) {
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
-
-  if (datum == Empty) {
-    return;
-  }
-
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-  int flag = 0;
-  for (int i = 0; i < num_searches; i++) {
-    size_t loc = (warp_index + key + i * warpSize) % size;
-
-    size_t leader =
-        __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
-    if (leader != 0) {
-      if (leader == (warp_index + 1) &&
-          Empty == atomicCAS(&table_key_device[loc], Empty, datum)) {
-        data[n / warpSize] = Empty;
-        table_value_device[loc] = result[n / warpSize];
-        flag = 1;
-      }
-      __syncwarp();
-      flag = __shfl_sync(FULL_MASK, flag, leader - 1);
-      if (flag)
-        return;
-    }
-  }
-}
+                                     size_t num_searches);
 
 GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
                                    val_type *table_value_device, size_t size,
-                                   size_t num_searches = 5) {
-  __shared__ int shmem[32];
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
-
-  if (datum == Empty) {
-    return;
-  }
-
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-
-  if (!warp_index) {
-    shmem[threadIdx.x / warpSize] = 0;
-  }
-
-  for (int i = 0; i < num_searches; i++) {
-    size_t loc = (warp_index + key + i * warpSize) % size;
-
-    if (table_key_device[loc] == datum &&
-        datum == atomicCAS(&table_key_device[loc], datum, Reserved)) {
-      result[n / warpSize] = table_value_device[loc];
-      data[n / warpSize] = Empty;
-      table_key_device[loc] = datum;
-      shmem[threadIdx.x / warpSize] = 1;
-    }
-    __syncwarp();
-    if (shmem[threadIdx.x / warpSize])
-      return;
-  }
-}
+                                   size_t num_searches);
 
 struct BatchProdCons {
   uint32_t _back;

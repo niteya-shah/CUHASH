@@ -1,10 +1,10 @@
 CXX = nvcc
 
-CXXFLAGS	:= --compiler-options=-Wextra,-Wall,-O2,-Wno-unused-result,-Wno-unused-parameter
-CXXFLAGS_DEBUG	:= -DDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter 
+CXXFLAGS	:= --shared -c --compiler-options=-Wextra,-Wall,-O2,-Wno-unused-result,-Wno-unused-parameter,-fPIC
+CXXFLAGS_DEBUG	:= --shared -c -DDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter,-fPIC 
 
 
-LFLAGS = #-lcuda -lcudart
+LFLAGS = -lcuda -lcudart
 OUTPUT	:= output
 
 SRC		:= src
@@ -17,21 +17,20 @@ INCLUDEDIRS	:= $(shell find $(INCLUDE) -type d)
 LIBDIRS		:= $(shell find $(LIB) -type d)
 RM = rm -f
 MD	:= mkdir -p
-OBJECTS := main.cu
-OUTPUTMAIN := $(OUTPUT)/run
+OBJECTS := $(shell find $(SRC) -type f -name "*.cu" | sed "s/.*\///" | cut -f 1 -d '.')
 
 
 all: $(OUTPUT) $(MAIN)
 
 debug:
-	$(CXX) src/$(OBJECTS) $(CXXFLAGS_DEBUG) -I $(INCLUDEDIRS) -o $(OUTPUTMAIN)  $(LFLAGS) $(LIBS)
+	$(CXX) $(OBJECTS) $(CXXFLAGS_DEBUG) -I $(INCLUDEDIRS) -o $(OUTPUTMAIN)  $(LFLAGS) $(LIBS)
 
 
 $(OUTPUT):
 	$(MD) $(OUTPUT)
 
 $(MAIN):
-	$(CXX) src/$(OBJECTS) $(CXXFLAGS) -I $(INCLUDEDIRS) -o $(OUTPUTMAIN)  $(LFLAGS) $(LIBS)
+	$(CXX) src/$(OBJECTS).cu $(CXXFLAGS) -I $(INCLUDEDIRS) -o lib/lib$(OBJECTS).so $(LFLAGS) $(LIBS)
 
 clean:
 	$(RM) $(OUTPUTMAIN)
