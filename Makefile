@@ -23,7 +23,7 @@ OBJECTS := $(shell find $(SRC) -type f -name "*.cu" | sed "s/.*\///" | cut -f 1 
 all: $(OUTPUT) $(MAIN)
 
 debug:
-	$(CXX) $(OBJECTS) $(CXXFLAGS_DEBUG) -I $(INCLUDEDIRS) -o $(OUTPUTMAIN)  $(LFLAGS) $(LIBS)
+	$(CXX) src/$(OBJECTS).cu $(CXXFLAGS_DEBUG) -I $(INCLUDEDIRS) -o lib/lib$(OBJECTS).so  $(LFLAGS) $(LIBS)
 
 
 $(OUTPUT):
