@@ -4,6 +4,7 @@
 #include <string>
 #include <iostream>
 #include <cuda_runtime.h>
+#include <cassert>
 
 #ifdef __CUDACC__
 #define HOSTDEVICEQUALIFIER  __host__ __device__

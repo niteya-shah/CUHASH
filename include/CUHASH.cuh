@@ -20,22 +20,23 @@ struct CUHASH {
 
   val_type *batch_find(key_type *key, int n) {
     int loc = this->batch->push(key, n);
+    int offset = loc * this->batch->size_of_query;
     int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
 
     cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
 
     ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
-        &this->batch->query_device[loc], &this->batch->result_device[loc],
+        &this->batch->query_device[offset], &this->batch->result_device[offset],
         llayer->table_key_device, llayer->table_value_device, llayer->size);
     ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
-        &this->batch->query_device[loc], &this->batch->result_device[loc],
+        &this->batch->query_device[offset], &this->batch->result_device[offset],
         htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
     cudaEventRecord(this->batch->evt[loc]);
     this->batch->pop(false);
 
-    return &this->batch->result_host[loc];
+    return &this->batch->result_host[offset];
   }
 
   key_type *batch_insert(key_type *key, val_type *value, int n) {

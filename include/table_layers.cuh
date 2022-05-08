@@ -229,7 +229,11 @@ struct BatchProdCons {
     // checkCuda(cudaStreamSynchronize(stream[_front]));
 
     uint32_t temp = _front;
+
+  #if defined(DEBUG) || defined(_DEBUG)
     std::cout<<"Adding to front "<<_front<<std::endl;
+  #endif
+
     _front++;
     _front %= capacity;
     ++in_use;
@@ -251,7 +255,9 @@ struct BatchProdCons {
     h2d(_front, false);
     // checkCuda(cudaStreamSynchronize(stream[_front]));
 
+#if defined(DEBUG) || defined(_DEBUG)
     std::cout<<"Adding to front "<<_front<<std::endl;
+#endif
 
     ++in_use;
     uint32_t temp = _front;
@@ -265,7 +271,10 @@ struct BatchProdCons {
 
     d2h(_back, query);
     checkCuda(cudaStreamSynchronize(stream[_back]));
+
+#if defined(DEBUG) || defined(_DEBUG)
     std::cout<<"Removing from "<<_back<<std::endl;
+#endif
 
     _back++;
     _back %= capacity;

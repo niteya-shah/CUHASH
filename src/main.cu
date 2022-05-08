@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 	int n = x->batch->blockSize * x->batch->minGridSize/warpSize;
 	key_type *key = new key_type[n];
 	val_type *val = new val_type[n];
-	int misses, K = 1;
+	int misses, K = 100;
 	int counter[K];
 
 	for(int k= 0;k < K;k++)
@@ -31,9 +31,9 @@ int main(int argc, char *argv[])
 
 		for(int i = 0;i < n;i++)
 		{
-			if(val[i] != result[i - 1])
+			if(val[i] != result[i])
 			{
-				printf("%i: %i, %i\n", key[i], val[i], result[i - 1]);
+				// printf("%i: %i, %i, %i\n", key[i], val[i], result[i - 1], result[i - 3]);
 				misses++;
 			}
 
