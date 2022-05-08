@@ -2,6 +2,8 @@
 #include <experimental/random>
 #include <string>
 #include <CUHASH.cuh>
+#include <unistd.h>
+
 
 
 int main(int argc, char *argv[])
@@ -10,7 +12,7 @@ int main(int argc, char *argv[])
 	int n = x->batch->blockSize * x->batch->minGridSize/warpSize;
 	key_type *key = new key_type[n];
 	val_type *val = new val_type[n];
-	int misses, K = 1;
+	int misses, K = 100;
 	int counter[K];
 
 	for(int k= 0;k < K;k++)
@@ -24,21 +26,14 @@ int main(int argc, char *argv[])
 			// val[i] = i + 1;
 		}
 		
-		x->batch_insert(key, val, n);
-
-		// for(int i = 0;i < n;i++)
-		// {
-		// 	printf("%i: %i\n", x->batch->query_host[i], val[i]);
-		// }
-
+		int *keys = x->batch_insert(key, val, n);
 		int *result = x->batch_find(key, n);
 
 		for(int i = 0;i < n;i++)
 		{
-			// printf("%i: %i, %i\n", key[i], val[i], result[i]);
 			if(val[i] != result[i])
 			{
-				printf("%i: %i, %i\n", key[i], val[i], result[i]);
+				// printf("%i: %i, %i, %i\n", key[i], val[i], result[i - 1], result[i - 3]);
 				misses++;
 			}
 
