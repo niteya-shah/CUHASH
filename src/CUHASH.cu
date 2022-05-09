@@ -1,7 +1,7 @@
 #ifndef CUHASH_CPP
 #define CUHASH_CPP
 
-#include<CUHASH.cuh>
+#include <CUHASH.cuh>
 
 GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
@@ -109,64 +109,66 @@ GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
   }
 }
 
-  CUHASH::CUHASH() {
-    this->llayer = new LLlayer();
-    this->htlayer = new HTLayer();
-    // this->large_layer = new LargeLayer();
-    this->batch = new BatchProdCons();
-  }
+CUHASH::CUHASH() {
+  this->llayer = new LLlayer();
+  this->htlayer = new HTLayer();
+  // this->large_layer = new LargeLayer();
+  this->batch = new BatchProdCons();
+}
 
-  val_type* CUHASH::batch_find(key_type *key, int n) {
-    int loc = this->batch->push(key, n);
-    int offset = loc * this->batch->size_of_query;
-    int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
+val_type *CUHASH::batch_find(key_type *key, int n) {
+  int loc = this->batch->push(key, n);
+  int offset = loc * this->batch->size_of_query;
+  int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
 
-    cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
+  cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous],
+                      0);
 
-    ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
+  ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
+                  this->batch->stream[loc]>>>(
+      &this->batch->query_device[offset], &this->batch->result_device[offset],
+      llayer->table_key_device, llayer->table_value_device, llayer->size);
+  ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
+                  this->batch->stream[loc]>>>(
+      &this->batch->query_device[offset], &this->batch->result_device[offset],
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
+  cudaEventRecord(this->batch->evt[loc]);
+  this->batch->pop(false);
+
+  return &this->batch->result_host[offset];
+}
+
+key_type *CUHASH::batch_insert(key_type *key, val_type *value, int n) {
+  // Occupancy for cuda
+  // https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
+
+  int loc = this->batch->push(key, value, n);
+  int offset = loc * this->batch->size_of_query;
+  int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
+
+  cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous],
+                      0);
+
+  ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
-        &this->batch->query_device[offset], &this->batch->result_device[offset],
-        llayer->table_key_device, llayer->table_value_device, llayer->size);
-    ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
+      &this->batch->query_device[offset], &this->batch->result_device[offset],
+      llayer->table_key_device, llayer->table_value_device, llayer->size);
+  ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
-        &this->batch->query_device[offset], &this->batch->result_device[offset],
-        htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
-    cudaEventRecord(this->batch->evt[loc]);
-    this->batch->pop(false);
+      &this->batch->query_device[offset], &this->batch->result_device[offset],
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
+  cudaEventRecord(this->batch->evt[loc]);
 
-    return &this->batch->result_host[offset];
-  }
+  this->batch->pop(true);
 
-  key_type* CUHASH::batch_insert(key_type *key, val_type *value, int n) {
-    // Occupancy for cuda
-    // https://developer.nvidia.com/blog/cuda-pro-tip-occupancy-api-simplifies-launch-configuration/
+  return &this->batch->query_host[offset];
+}
 
-    int loc = this->batch->push(key, value, n);
-    int offset = loc * this->batch->size_of_query;
-    int previous = (this->batch->capacity + loc - 1) % this->batch->capacity;
-
-    cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous], 0);
-
-    ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                      this->batch->stream[loc]>>>(
-        &this->batch->query_device[offset], &this->batch->result_device[offset],
-        llayer->table_key_device, llayer->table_value_device, llayer->size);
-    ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                      this->batch->stream[loc]>>>(
-        &this->batch->query_device[offset], &this->batch->result_device[offset],
-        htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
-    cudaEventRecord(this->batch->evt[loc]);
-
-    this->batch->pop(true);
-
-    return &this->batch->query_host[offset];
-  }
-
-  CUHASH::~CUHASH() {
-    delete this->llayer;
-    delete this->htlayer;
-    // delete this->large_layer;
-    delete this->batch;
-  }
+CUHASH::~CUHASH() {
+  delete this->llayer;
+  delete this->htlayer;
+  // delete this->large_layer;
+  delete this->batch;
+}
 
 #endif

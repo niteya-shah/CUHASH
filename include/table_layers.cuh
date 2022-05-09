@@ -15,13 +15,12 @@ __device__ auto hash = XXH32_avalanche<key_type>;
 
 GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
-                                     val_type *table_value_device,
-                                     size_t size);
+                                     val_type *table_value_device, size_t size);
 
 GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
                                    val_type *table_value_device, size_t size);
-                              
+
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
                                      val_type *table_value_device, size_t size,
@@ -124,7 +123,8 @@ struct BatchProdCons {
                                 this->size_of_query * sizeof(key_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     } else {
-      checkCuda(cudaMemcpyAsync(&this->result_host[offset], &this->result_device[offset],
+      checkCuda(cudaMemcpyAsync(&this->result_host[offset],
+                                &this->result_device[offset],
                                 this->size_of_query * sizeof(val_type),
                                 cudaMemcpyDeviceToHost, stream[loc]));
     }
@@ -143,9 +143,9 @@ struct BatchProdCons {
 
     uint32_t temp = _front;
 
-  #if defined(DEBUG) || defined(_DEBUG)
-    std::cout<<"Adding to front "<<_front<<std::endl;
-  #endif
+#if defined(DEBUG) || defined(_DEBUG)
+    std::cout << "Adding to front " << _front << std::endl;
+#endif
 
     _front++;
     _front %= capacity;
@@ -169,7 +169,7 @@ struct BatchProdCons {
     // checkCuda(cudaStreamSynchronize(stream[_front]));
 
 #if defined(DEBUG) || defined(_DEBUG)
-    std::cout<<"Adding to front "<<_front<<std::endl;
+    std::cout << "Adding to front " << _front << std::endl;
 #endif
 
     ++in_use;
@@ -186,7 +186,7 @@ struct BatchProdCons {
     checkCuda(cudaStreamSynchronize(stream[_back]));
 
 #if defined(DEBUG) || defined(_DEBUG)
-    std::cout<<"Removing from "<<_back<<std::endl;
+    std::cout << "Removing from " << _back << std::endl;
 #endif
 
     _back++;
@@ -194,8 +194,7 @@ struct BatchProdCons {
     --in_use;
   }
 
-  friend std::ostream &operator<<(std::ostream &out,
-                                  const BatchProdCons &cb) {
+  friend std::ostream &operator<<(std::ostream &out, const BatchProdCons &cb) {
     for (unsigned i = cb._back, count = 0; count != cb.in_use;
          i = (i + 1) % cb.capacity, count++) {
       // out << cb.data[i] << " ";
