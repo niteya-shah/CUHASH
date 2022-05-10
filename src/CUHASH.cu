@@ -129,7 +129,7 @@ GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
   }
 }
 
-CUHASH::CUHASH(uint32_t ll_size = 1000, uint32_t ht_size = 100000) {
+CUHASH::CUHASH(uint32_t ll_size, uint32_t ht_size) {
   this->llayer = new LLlayer(ll_size);
   this->htlayer = new HTLayer(ht_size);
   // this->large_layer = new LargeLayer();
