@@ -9,7 +9,7 @@ GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
                                      size_t size) {
   size_t n = blockIdx.x * blockDim.x + threadIdx.x;
   key_type datum = data[n / warpSize];
-  int num_searches = blockDim.x/warpSize;
+  int num_searches = blockDim.x / warpSize;
 
   if (datum == Empty) {
     return;
@@ -44,9 +44,8 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
   size_t n = blockIdx.x * blockDim.x + threadIdx.x;
   int warp_index = threadIdx.x % warpSize;
 
-  for(int i = 0;i < blockDim.x/warpSize;i++)
-  {
-    size_t ele = ((n / blockDim.x) * warpSize)  + i;
+  for (int i = 0; i < blockDim.x / warpSize; i++) {
+    size_t ele = ((n / blockDim.x) * warpSize) + i;
     key_type datum = data[ele];
     size_t key = hash(datum);
 
