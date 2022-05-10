@@ -208,7 +208,7 @@ struct LLlayer {
   key_type *table_key_device;
   val_type *table_value_device;
 
-  HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size = 1000) {
+  HOSTQUALIFIER INLINEQUALIFIER explicit LLlayer(uint32_t size) {
     this->size = size;
     checkCuda(cudaMalloc((void **)&table_key_device, size * sizeof(key_type)));
     checkCuda(
@@ -228,7 +228,7 @@ struct HTLayer {
   key_type *table_key_device;
   val_type *table_value_device;
 
-  HOSTQUALIFIER INLINEQUALIFIER explicit HTLayer(uint32_t size = 100000) {
+  HOSTQUALIFIER INLINEQUALIFIER explicit HTLayer(uint32_t size) {
     this->size = size;
     checkCuda(cudaMalloc((void **)&table_key_device, size * sizeof(key_type)));
     checkCuda(
