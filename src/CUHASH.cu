@@ -26,7 +26,8 @@ GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
 GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
                                    val_type *table_value_device, size_t size) {
-size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+
+  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
   key_type datum = data[n / warpSize];
   size_t key = hash(datum);
   int warp_index = threadIdx.x % warpSize;
@@ -42,70 +43,79 @@ size_t n = blockIdx.x * blockDim.x + threadIdx.x;
 
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
-                                     val_type *table_value_device, size_t size,
+                                     val_type *table_value_device, size_t size, size_t array_size,
                                      size_t num_searches = 5) {
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
+  int ele = gridDim.x * blockDim.x;
+  for(int j = 0;j < array_size/ele;j++)
+  {
+    size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+    key_type datum = data[n / warpSize + ele * j];
 
-  if (datum == Empty) {
-    return;
-  }
+    if (datum == Empty) {
+      return;
+    }
 
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-  int flag = 0;
-  for (int i = 0; i < num_searches; i++) {
-    size_t loc = (warp_index + key + i * warpSize) % size;
+    size_t key = hash(datum);
+    int warp_index = threadIdx.x % warpSize;
+    int flag = 0;
+    for (int i = 0; i < num_searches; i++) {
+      size_t loc = (warp_index + key + i * warpSize) % size;
 
-    size_t leader =
-        __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
-    if (leader != 0) {
-      if (leader == (warp_index + 1) &&
-          Empty == atomicCAS(&table_key_device[loc], Empty, datum)) {
-        data[n / warpSize] = Empty;
-        table_value_device[loc] = result[n / warpSize];
-        flag = 1;
+      size_t leader =
+          __ffs(__ballot_sync(FULL_MASK, table_key_device[loc] == Empty));
+      if (leader != 0) {
+        if (leader == (warp_index + 1) &&
+            Empty == atomicCAS(&table_key_device[loc], Empty, datum)) {
+          data[n / warpSize + ele * j] = Empty;
+          table_value_device[loc] = result[n / warpSize + ele * j];
+          flag = 1;
+        }
+        __syncwarp();
+        flag = __shfl_sync(FULL_MASK, flag, leader - 1);
+        if (flag)
+          return;
       }
-      __syncwarp();
-      flag = __shfl_sync(FULL_MASK, flag, leader - 1);
-      if (flag)
-        return;
     }
   }
 }
 
 GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
-                                   val_type *table_value_device, size_t size,
+                                   val_type *table_value_device, size_t size, size_t array_size,
                                    size_t num_searches = 5) {
   __shared__ int shmem[32];
-  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
-  key_type datum = data[n / warpSize];
 
-  if (datum == Empty) {
-    return;
-  }
+  int ele = gridDim.x * blockDim.x;
+  for(int j = 0;j < array_size/ele;j++)
+  {
+    size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+    key_type datum = data[n / warpSize + ele * j];
 
-  size_t key = hash(datum);
-  int warp_index = threadIdx.x % warpSize;
-
-  if (!warp_index) {
-    shmem[threadIdx.x / warpSize] = 0;
-  }
-
-  for (int i = 0; i < num_searches; i++) {
-    size_t loc = (warp_index + key + i * warpSize) % size;
-
-    if (table_key_device[loc] == datum &&
-        datum == atomicCAS(&table_key_device[loc], datum, Reserved)) {
-      result[n / warpSize] = table_value_device[loc];
-      data[n / warpSize] = Empty;
-      table_key_device[loc] = datum;
-      shmem[threadIdx.x / warpSize] = 1;
-    }
-    __syncwarp();
-    if (shmem[threadIdx.x / warpSize])
+    if (datum == Empty) {
       return;
+    }
+
+    size_t key = hash(datum);
+    int warp_index = threadIdx.x % warpSize;
+
+    if (!warp_index) {
+      shmem[threadIdx.x / warpSize] = 0;
+    }
+
+    for (int i = 0; i < num_searches; i++) {
+      size_t loc = (warp_index + key + i * warpSize) % size;
+
+      if (table_key_device[loc] == datum &&
+          datum == atomicCAS(&table_key_device[loc], datum, Reserved)) {
+        result[n / warpSize + ele * j] = table_value_device[loc];
+        data[n / warpSize + ele * j] = Empty;
+        table_key_device[loc] = datum;
+        shmem[threadIdx.x / warpSize] = 1;
+      }
+      __syncwarp();
+      if (shmem[threadIdx.x / warpSize])
+        break;
+    }
   }
 }
 
@@ -124,14 +134,14 @@ val_type *CUHASH::batch_find(key_type *key, int n) {
   cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous],
                       0);
 
-  ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                  this->batch->stream[loc]>>>(
-      &this->batch->query_device[offset], &this->batch->result_device[offset],
-      llayer->table_key_device, llayer->table_value_device, llayer->size);
+  // ll_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
+  //                 this->batch->stream[loc]>>>(
+  //     &this->batch->query_device[offset], &this->batch->result_device[offset],
+  //     llayer->table_key_device, llayer->table_value_device, llayer->size);
   ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
                   this->batch->stream[loc]>>>(
       &this->batch->query_device[offset], &this->batch->result_device[offset],
-      htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, this->batch->size_of_query);
   cudaEventRecord(this->batch->evt[loc]);
   this->batch->pop(false);
 
@@ -149,14 +159,14 @@ key_type *CUHASH::batch_insert(key_type *key, val_type *value, int n) {
   cudaStreamWaitEvent(this->batch->stream[previous], this->batch->evt[previous],
                       0);
 
-  ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
-                    this->batch->stream[loc]>>>(
-      &this->batch->query_device[offset], &this->batch->result_device[offset],
-      llayer->table_key_device, llayer->table_value_device, llayer->size);
+  // ll_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
+  //                   this->batch->stream[loc]>>>(
+  //     &this->batch->query_device[offset], &this->batch->result_device[offset],
+  //     llayer->table_key_device, llayer->table_value_device, llayer->size);
   ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
       &this->batch->query_device[offset], &this->batch->result_device[offset],
-      htlayer->table_key_device, htlayer->table_value_device, htlayer->size);
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, this->batch->size_of_query);
   cudaEventRecord(this->batch->evt[loc]);
 
   this->batch->pop(true);

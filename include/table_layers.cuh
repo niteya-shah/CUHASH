@@ -23,12 +23,12 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
 
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
-                                     val_type *table_value_device, size_t size,
+                                     val_type *table_value_device, size_t size,size_t array_size,
                                      size_t num_searches);
 
 GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
-                                   val_type *table_value_device, size_t size,
+                                   val_type *table_value_device, size_t size,size_t array_size,
                                    size_t num_searches);
 
 struct BatchProdCons {
@@ -36,6 +36,7 @@ struct BatchProdCons {
   uint32_t _front;
   uint32_t in_use;
   const uint32_t capacity;
+  int mul;
 
   uint32_t size_of_query;
   uint32_t size_of_buffer;
@@ -52,15 +53,15 @@ struct BatchProdCons {
   val_type *result_device;
   val_type *result_host;
 
-  BatchProdCons(uint32_t size = 5)
-      : _back(0), _front(0), in_use(0), capacity(size) {
+  BatchProdCons(uint32_t size = 5, int mul = 20)
+      : _back(0), _front(0), in_use(0), capacity(size),mul(mul) {
 
     cudaDeviceProp prop;
     checkCuda(cudaGetDeviceProperties(&prop, 0));
 
     checkCuda(cudaOccupancyMaxPotentialBlockSize(
         &this->minGridSize, &this->blockSize, ll_batch_find, 0, 0));
-    this->size_of_query = this->minGridSize * this->blockSize / warpSize;
+    this->size_of_query = this->minGridSize * this->blockSize / warpSize * mul;
     this->size_of_buffer = this->size_of_query * capacity;
 
     this->stream = new cudaStream_t[capacity];
