@@ -1,6 +1,6 @@
 CXX = nvcc
 
-CXXFLAGS	:= --shared -c --compiler-options=-Wextra,-Wall,-O2,-Wno-unused-result,-Wno-unused-parameter,-fPIC
+CXXFLAGS	:= --shared -c --compiler-options=-Wextra,-Wall,-O3,-Wno-unused-result,-Wno-unused-parameter,-fPIC
 CXXFLAGS_DEBUG	:= --shared -c -DDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wno-unused-result,-Wno-unused-parameter,-fPIC 
 
 

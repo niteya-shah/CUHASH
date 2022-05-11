@@ -15,11 +15,11 @@ __device__ auto hash = XXH32_avalanche<key_type>;
 
 GLOBALQUALIFIER void ll_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
-                                     val_type *table_value_device, size_t size);
+                                     val_type *table_value_device, size_t size,size_t array_size);
 
 GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
-                                   val_type *table_value_device, size_t size);
+                                   val_type *table_value_device, size_t size,size_t array_size);
 
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
