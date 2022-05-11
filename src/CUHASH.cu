@@ -43,12 +43,14 @@ GLOBALQUALIFIER void ll_batch_find(key_type *data, val_type *result,
 
 GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
                                      key_type *table_key_device,
-                                     val_type *table_value_device, size_t size, size_t array_size,
+                                     val_type *table_value_device, size_t size, size_t iters,
                                      size_t num_searches = 5) {
-  int ele = gridDim.x * blockDim.x;
-  for(int j = 0;j < array_size/ele;j++)
+  int ele = gridDim.x * blockDim.x/warpSize;
+  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+
+  for(size_t j = 0;j < iters;j++)
   {
-    size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+
     key_type datum = data[n / warpSize + ele * j];
 
     if (datum == Empty) {
@@ -73,7 +75,7 @@ GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
         __syncwarp();
         flag = __shfl_sync(FULL_MASK, flag, leader - 1);
         if (flag)
-          return;
+          break;
       }
     }
   }
@@ -81,14 +83,16 @@ GLOBALQUALIFIER void ht_batch_insert(key_type *data, val_type *result,
 
 GLOBALQUALIFIER void ht_batch_find(key_type *data, val_type *result,
                                    key_type *table_key_device,
-                                   val_type *table_value_device, size_t size, size_t array_size,
+                                   val_type *table_value_device, size_t size, size_t iters,
                                    size_t num_searches = 5) {
   __shared__ int shmem[32];
 
-  int ele = gridDim.x * blockDim.x;
-  for(int j = 0;j < array_size/ele;j++)
+  int ele = gridDim.x * blockDim.x/warpSize;
+  size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+    
+  for(int j = 0;j < iters;j++)
   {
-    size_t n = blockIdx.x * blockDim.x + threadIdx.x;
+
     key_type datum = data[n / warpSize + ele * j];
 
     if (datum == Empty) {
@@ -141,7 +145,7 @@ val_type *CUHASH::batch_find(key_type *key, int n) {
   ht_batch_find<<<this->batch->minGridSize, this->batch->blockSize, 0,
                   this->batch->stream[loc]>>>(
       &this->batch->query_device[offset], &this->batch->result_device[offset],
-      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, this->batch->size_of_query);
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, (warpSize * this->batch->size_of_query)/(this->batch->minGridSize * this->batch->blockSize));
   cudaEventRecord(this->batch->evt[loc]);
   this->batch->pop(false);
 
@@ -166,7 +170,7 @@ key_type *CUHASH::batch_insert(key_type *key, val_type *value, int n) {
   ht_batch_insert<<<this->batch->minGridSize, this->batch->blockSize, 0,
                     this->batch->stream[loc]>>>(
       &this->batch->query_device[offset], &this->batch->result_device[offset],
-      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, this->batch->size_of_query);
+      htlayer->table_key_device, htlayer->table_value_device, htlayer->size, (warpSize * this->batch->size_of_query)/(this->batch->minGridSize * this->batch->blockSize));
   cudaEventRecord(this->batch->evt[loc]);
 
   this->batch->pop(true);
