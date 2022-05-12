@@ -5,7 +5,7 @@ CXXFLAGS_DEBUG	:= --shared -c -DDEBUG -g -G --compiler-options=-Wextra,-Wall,-Wn
 
 
 LFLAGS = -lcuda -lcudart
-OUTPUT	:= output
+OUTPUT	:= lib
 
 SRC		:= src
 INCLUDE	:= include
